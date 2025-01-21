@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
+using System.Text.Json;
 using System.Windows.Forms;
 
 namespace _2DModelsDrawer
@@ -24,16 +26,10 @@ namespace _2DModelsDrawer
 
         private void drawingPictureBox_MouseClick(object sender, MouseEventArgs e)
         {
-            if (isDrawing)
+            if (isDrawing && e.Button == MouseButtons.Left)
             {
                 polygonPoints.Add(e.Location);
                 drawingPictureBox.Invalidate(); // Redraw the PictureBox to show the new point
-            }
-            else if (isRotating)
-            {
-                rotationPoint = e.Location;
-                isRotating = false;
-                drawingPictureBox.Invalidate(); // Redraw the PictureBox to show the rotation point
             }
         }
 
@@ -41,14 +37,14 @@ namespace _2DModelsDrawer
         {
             if (!isDrawing && polygonPoints.Count > 0)
             {
-                if (Control.ModifierKeys == Keys.Shift)
+                if (e.Button == MouseButtons.Right)
                 {
                     isRotating = true;
                     rotationPoint = GetPolygonCenter();
                     initialAngle = GetAngle(rotationPoint, e.Location);
                     originalPolygonPoints = new List<Point>(polygonPoints);
                 }
-                else
+                else if (e.Button == MouseButtons.Left)
                 {
                     isDragging = true;
                     dragStartPoint = e.Location;
@@ -59,7 +55,7 @@ namespace _2DModelsDrawer
 
         private void drawingPictureBox_MouseMove(object sender, MouseEventArgs e)
         {
-            if (isDragging)
+            if (isDragging && e.Button == MouseButtons.Left)
             {
                 int dx = e.X - dragStartPoint.X;
                 int dy = e.Y - dragStartPoint.Y;
@@ -72,7 +68,7 @@ namespace _2DModelsDrawer
                     drawingPictureBox.Invalidate(); // Redraw the PictureBox to show the moved polygon
                 }
             }
-            else if (isRotating)
+            else if (isRotating && e.Button == MouseButtons.Right)
             {
                 double currentAngle = GetAngle(rotationPoint, e.Location);
                 double angleDifference = currentAngle - initialAngle;
@@ -85,16 +81,17 @@ namespace _2DModelsDrawer
 
                 ApplyTransformation(CreateRotationMatrix(angleDifference, rotationPoint));
                 initialAngle = currentAngle;
+                drawingPictureBox.Invalidate(); // Redraw the PictureBox to show the rotated polygon
             }
         }
 
         private void drawingPictureBox_MouseUp(object sender, MouseEventArgs e)
         {
-            if (isDragging)
+            if (isDragging && e.Button == MouseButtons.Left)
             {
                 isDragging = false;
             }
-            else if (isRotating)
+            else if (isRotating && e.Button == MouseButtons.Right)
             {
                 isRotating = false;
             }
@@ -163,6 +160,21 @@ namespace _2DModelsDrawer
         private void clearButton_Click(object sender, EventArgs e)
         {
             ClearDrawing();
+        }
+
+        private void disableRotationButton_Click(object sender, EventArgs e)
+        {
+            DisableRotation();
+        }
+
+        private void saveButton_Click(object sender, EventArgs e)
+        {
+            SaveDrawing();
+        }
+
+        private void loadButton_Click(object sender, EventArgs e)
+        {
+            LoadDrawing();
         }
 
         private void StartDrawing()
@@ -251,6 +263,36 @@ namespace _2DModelsDrawer
             polygonPoints.Clear();
             rotationPoint = Point.Empty;
             drawingPictureBox.Invalidate(); // Clear the PictureBox
+        }
+
+        private void DisableRotation()
+        {
+            isRotating = false;
+            rotationPoint = Point.Empty;
+            drawingPictureBox.Invalidate(); // Redraw the PictureBox to remove the rotation point
+        }
+
+        private void SaveDrawing()
+        {
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            string jsonString = JsonSerializer.Serialize(polygonPoints, options);
+            File.WriteAllText("drawing.json", jsonString);
+            MessageBox.Show("Drawing saved successfully.");
+        }
+
+        private void LoadDrawing()
+        {
+            if (File.Exists("drawing.json"))
+            {
+                string jsonString = File.ReadAllText("drawing.json");
+                polygonPoints = JsonSerializer.Deserialize<List<Point>>(jsonString);
+                drawingPictureBox.Invalidate(); // Redraw the PictureBox to show the loaded polygon
+                MessageBox.Show("Drawing loaded successfully.");
+            }
+            else
+            {
+                MessageBox.Show("No saved drawing found.");
+            }
         }
     }
 }
